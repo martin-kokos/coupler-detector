@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+
+import click
+import torch
+import cv2
+
+from coupler_detector.train import get_transform
+from coupler_detector.train import model
+from coupler_detector.train import filter_output
+
+transforms = get_transform(train=False)
+
+state_dict = torch.load('coupler_detector.torch')
+model.load_state_dict(state_dict)
+
+
+@click.command()
+@click.argument('filenames', type=click.Path(exists=True), nargs=-1)
+@click.option('--preview', is_flag=True, default=False)
+def run(filenames, preview):
+
+    for filename in filenames:
+
+        img = cv2.imread(str(filename))
+
+        t = transforms(img).unsqueeze(1)
+
+        model.eval()
+        output = model(t)
+
+        output = filter_output(output[0], threshold=0.8, label_class=1)
+
+        if len(output) == 0:
+            # no couplings found
+            continue
+
+        boxes = output['boxes'].detach()
+        detect_x = torch.mean(boxes[0][0::2]).to(dtype=torch.int32).item()
+
+        print()
+        print(detect_x)
+
+        if preview:
+            for box in output['boxes'].to(dtype=torch.int32).detach().numpy():
+                cv2.rectangle(img, pt1=box[:2], pt2=box[2:], color=(255, 0, 0), thickness=2)
+            cv2.line(img=img, pt1=(detect_x, 100), pt2=(detect_x, img.shape[0] - 100), color=(0, 255, 0), thickness=2)
+            img = cv2.resize(img, (1024, 768))
+            cv2.imshow('preview', img)
+            cv2.waitKey(0)
+
+
+if __name__ == '__main__':
+    run()
