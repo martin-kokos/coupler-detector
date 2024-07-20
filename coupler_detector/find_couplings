@@ -30,7 +30,7 @@ def run(filenames, preview):
 
         output = filter_output(output[0], threshold=0.8, label_class=1)
 
-        if len(output) == 0:
+        if len(output['boxes']) == 0:
             # no couplings found
             continue
 
